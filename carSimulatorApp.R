@@ -59,14 +59,14 @@ road.cr <- 0.011 # road load coefficient [-] ?not understand?
 # veh.mass <- veh.mass_curb * veh.mass_fm + veh.mass_driver # [kg]
 
 # simulation
-dT <- 0.1 # sample (plot) time [s]
+dT <- 0.03 # sample (plot) time [s]
 
 first <- c(3.45, 3.25, 2.92)
 second <- c(1.85)
 third <- c(1.36, 1.280)
 fourth <- c(1.069, 0.969)
 fifth <- c(0.865, 0.810, 0.760)
-final <- c(3.62, 3.94, 4.06, 4.43)
+final <- c(3.62, 3.94, 4.06, 4.43, 5.1)
 
 ui <- fluidPage(
   sidebarLayout(
@@ -110,8 +110,9 @@ ui <- fluidPage(
                               "gear selected" = "gear",
                               "vehicle speed (km/h)" = "whl_spd",
                               "vehicle speed (m/s)" = "vehSpeed",
-			      "acceleration (m/s^2)" = "vehAcc_mps2")
-                  ),
+			                        "acceleration (m/s2)" = "vehAcc_mps2"),
+                  selected = "whl_spd"
+      ),
       selectInput(inputId="graphx",
                   label = h4("graph x"),
                   choices = c("engine torque" = "tq", 
@@ -122,7 +123,7 @@ ui <- fluidPage(
                               "vehicle speed (km/h)" = "whl_spd",
                               "vehicle speed (m/s)" = "vehSpeed",
                               "time (s)" = "time",
-			      "acceleration (m/s^2)" = "vehAcc_mps2"),
+			                        "acceleration (m/s2)" = "vehAcc_mps2"),
                   selected = "time"
       ),
       
@@ -199,7 +200,7 @@ server = function(input, output, session){
     trn_spd <-
       (gbx.i0 * gbx.gearRat[gear] / engineSpeed) * (30 / pi)   # transmission speed [rad/s] at idle in first
     
-    result <- data.frame("time", "tq", "kW", "trn_tq", "eng_rpm", "gear", "whl_spd", "vehSpeed", "vehAcc_mps2")
+    result <- data.frame("time", "tq", "kW", "engineSpeed", "trn_tq", "eng_rpm", "gear", "whl_spd", "vehSpeed", "vehAcc_mps2")
     names(result) <- result[1,]
     
     for (i in seq(0, 100/dT, 1)) {
@@ -224,13 +225,17 @@ server = function(input, output, session){
           eng.NmaxPwr,
           gbx.gearRat,
           gbx.i0,
-          gbx.eff
+          gbx.eff,
+          eng.Nmin,
+          eng.Nmax
         )
       
       trn_tq <- transmission_output[1]
       engineSpeed <- transmission_output[2]
       gear <- transmission_output[3]
       
+      vehSpeed.max <- (eng.Nmax*2*pi*tire.rwd) / (60*gbx.gearRat[gear]*gbx.i0) 
+        
       vehicle_output <-
         vehicle(
           veh.mass,
@@ -244,6 +249,7 @@ server = function(input, output, session){
           veh.fa,
           trn_tq,
           vehSpeed,
+          vehSpeed.max,
           dT,
           tire.rwd
         )
@@ -260,6 +266,7 @@ server = function(input, output, session){
     plot(simulation()[,input$graphx], simulation()[,input$graphy], col="blue", type="l", xlab = input$graphx, ylab=input$graphy)
   })
   output$text <- renderUI({
+    # redline <- paste0("redline: ", max(as.integer((simulation()[,"eng_rpm"]))))
     top_speed_N <- simulation()[which.max(as.integer((simulation()[,"vehSpeed"]))), ]
     top_speed <- paste0("top speed: ", as.integer(as.numeric(top_speed_N["vehSpeed"])*3.6), " Km/h at ", as.integer(top_speed_N["eng_rpm"]), " RPM, in ", top_speed_N["gear"], " gear, in ", top_speed_N["time"], " seconds")
     noughtto100 <- paste0("0-100: ", Position(function(x) x > 100, as.numeric(simulation()[,"vehSpeed"])*3.6)*dT)

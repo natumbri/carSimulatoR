@@ -38,7 +38,7 @@ engine <-
     
     tq <- approx(eng.NtqFullLoad, eng.tqFullLoad, engineSpeed)$y
     kW <- tq * (engineSpeed * (pi / 30)) / 1000
-    return(c(tq, kW))
+    return(c(tq, kW, engineSpeed))
   }
 
 transmission <-
@@ -51,7 +51,9 @@ transmission <-
            NmaxPwr,
            gearRat,
            fd_ratio,
-           dl_efficiency) {
+           dl_efficiency,
+           eng.minRpm,
+           eng.maxRpm) {
     shift_scheduler <-
       function(rpm,
                gear,
@@ -73,7 +75,6 @@ transmission <-
     gear <-
       shift_scheduler(eng_rpm, gear, gearMin, gearMax, NmaxTq, NmaxPwr)
     eng_rpm <-  trn_rpm * gearRat[gear] * fd_ratio
-    
     trn_tq <- gearRat[gear] * fd_ratio * eng_tq *  dl_efficiency
     return(c(trn_tq, eng_rpm, gear))
   }
@@ -90,6 +91,7 @@ vehicle <-
            veh.fa,
            whl_tq,
            vehSpeed,
+           vehSpeed.max,
            dT,
            tire.rwd) {
     friction_limit <- (veh.mass * veh.g * tire.miua * tire.load)
@@ -101,8 +103,13 @@ vehicle <-
     effectiveDriveTq <- min(whlTotTrq_N, friction_limit)
     netForce <- effectiveDriveTq - F_resistance_total
     vehAcc_mps2 <- netForce / veh.mass # F=ma
-    vehSpeed <-
-      vehSpeed + (vehAcc_mps2 * dT)  # assumes loop is dT seconds/iteration; instead of integrating
+    
+    #  check redline: only accelerate if vehSpeed is less than maximum implied by redline, gear and final drive
+    if ((vehAcc_mps2 > 0) & (vehSpeed < vehSpeed.max)){
+      vehSpeed <-
+        vehSpeed + (vehAcc_mps2 * dT)  # assumes loop is dT seconds/iteration; instead of integrating
+    }
+    
     vehSpeed_kph <- vehSpeed * 3.6
     whl_spd <- vehSpeed / tire.rwd
     return(c(whl_spd, as.numeric(vehSpeed), vehAcc_mps2))
